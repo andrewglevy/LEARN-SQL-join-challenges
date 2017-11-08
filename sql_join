@@ -1,0 +1,142 @@
+-- What languages are spoken in the United States? (12) Brazil? (not Spanish...) Switzerland? (6)
+SELECT cl.countrycode, cl.language, c.name, c.code
+FROM country c JOIN countrylanguage cl
+ON (cl.countrycode = c.code)
+WHERE name = 'United States' or name = 'Brazil' or name = 'Switzerland'
+ORDER BY name desc;
+-- What are the cities of the US? (274) India? (341)
+SELECT ci.name AS city_name, co.name AS country_name
+FROM country co JOIN city ci ON co.code = ci.countrycode
+WHERE co.name = 'United States' OR co.name = 'India';
+-- What are the official languages of Switzerland? (4 languages)
+SELECT co.name, cl.isofficial, cl. language
+FROM country co JOIN countrylanguage cl ON co.code = cl.countrycode
+WHERE co.name = 'Switzerland' and cl.isofficial = true
+-- Which country or contries speak the most languages? (12 languages)
+WITH language_counter AS (
+SELECT count(cl.language) AS num_of_languages, c.name
+FROM countrylanguage cl JOIN country c ON c.code = cl.countrycode
+GROUP BY c.name)
+SELECT num_of_languages, name
+FROM language_counter
+WHERE num_of_languages = 12;
+-- Which country or countries have the most official languages? (4 languages)
+WITH language_counter AS (
+SELECT count(cl.language) AS num_of_official_languages, c.name
+FROM countrylanguage cl JOIN country c ON c.code = cl.countrycode WHERE cl.isofficial = true
+GROUP BY c.name)
+SELECT num_of_official_languages, name
+FROM language_counter
+WHERE num_of_official_languages = 4;
+-- Which languages are spoken in the ten largest (area) countries?
+WITH largest_area AS (
+SELECT name, surfacearea, code
+FROM country
+ORDER BY surfacearea desc
+LIMIT 11)
+SELECT la.name, la.surfacearea, cl.language
+FROM largest_area la JOIN countrylanguage cl ON la.code = cl.countrycode
+ORDER BY surfacearea desc;
+-- What languages are spoken in the 20 poorest (GNP/ capita) countries in the world? (94 with GNP > 0)
+WITH poorest_country AS (
+SELECT name, code, (gnp/population) AS gnp_pc
+FROM country
+    WHERE population > 0 AND gnp > 0
+ORDER BY gnp_pc asc
+LIMIT 21)
+SELECT pc.name, pc.gnp_pc, cl.language
+FROM poorest_country pc JOIN countrylanguage cl ON pc.code = cl.countrycode
+ORDER BY gnp_pc asc;
+
+-- Are there any countries without an official language?
+WITH countrylist AS (
+     SELECT c.name, cl.language, cl.isofficial
+     FROM country c JOIN countrylanguage cl ON c.code = cl.countrycode
+	WHERE cl.isofficial ='true')
+	SELECT c.name, c.code
+    FROM countrylist RIGHT JOIN country c ON countrylist.name = c.name WHERE c.name NOT IN (SELECT name FROM countrylist)
+    ORDER BY name;
+
+    -- What are the languages spoken in the countries with no official language? (49 countries, 172 languages, incl. English)
+    WITH countrylist AS (
+     SELECT c.name, cl.language, cl.isofficial
+     FROM country c JOIN countrylanguage cl ON c.code = cl.countrycode
+	WHERE cl.isofficial ='true'),
+    no_official AS(
+	SELECT c.name, c.code, countrylist.isofficial
+    FROM countrylist RIGHT JOIN country c ON countrylist.name = c.name WHERE c.name NOT IN (SELECT name FROM countrylist)
+    ORDER BY name)
+    SELECT no.name, cl.countrycode, cl.language
+    FROM no_official no JOIN countrylanguage cl ON no.code = cl.countrycode
+    ORDER BY no.name asc;
+
+-- Which countries have the highest proportion of official language speakers? The lowest?
+WITH countrylist AS (
+   SELECT c.name, cl.language, cl.isofficial, cl.percentage
+   FROM country c JOIN countrylanguage cl ON c.code = cl.countrycode
+WHERE cl.isofficial ='true')
+
+SELECT * from countrylist WHERE percentage > 0 ORDER BY percentage desc;
+
+-- What is the most spoken language in the world?
+WITH country_list AS
+( SELECT cl.language, c.name, cl.percentage, c.population,  (cl.percentage / 100 * c.population) AS total_speakers
+FROM country c JOIN countrylanguage cl ON c.code = cl.countrycode),
+speakers AS (SELECT language, total_speakers FROM country_list WHERE total_speakers > 0 ORDER BY language asc)
+SELECT language, SUM(total_speakers) FROM speakers GROUP BY language ORDER BY SUM desc
+
+-- What is the population of the United States? What is the city population of the United States?
+WITH usalist AS(SELECT * FROM city WHERE countrycode = 'USA')
+SELECT countrycode, sum(population) FROM usalist GROUP BY countrycode;
+
+-- What is the population of the India? What is the city population of the India?
+WITH indialist AS(SELECT * FROM city WHERE countrycode = 'IND')
+SELECT countrycode, sum(population) FROM indialist GROUP BY countrycode;
+-- Population of whole
+SELECT name, population FROM country WHERE code = 'IND'
+
+-- Which countries have no cities? (7 not really contries...)
+WITH citylist AS (
+SELECT c.name AS country_name, ci.name AS city_name
+FROM country c JOIN city ci ON c.code = ci.countrycode),
+country_count AS (SELECT country_name, count(city_name) from citylist GROUP BY country_name ORDER BY country_name asc),
+countrylist AS (SELECT country_name FROM country_count)
+SELECT c.name
+FROM countrylist cl RIGHT JOIN country c ON c.name = cl.country_name WHERE c.name NOT IN (SELECT country_name FROM countrylist)
+ORDER BY name;
+
+-- What is the total population of cities where English is the offical language? Spanish?
+WITH country_eng_off AS(
+	SELECT c.name, c.code, cl.language, cl.isofficial
+	FROM country c JOIN countrylanguage cl ON c.code = cl.countrycode WHERE language = 'English' AND isofficial = 'true'),
+eng_city_list AS(
+    SELECT c.name AS countryname, ci.name AS cityname, ci.population
+    FROM country_eng_off c JOIN city ci  ON c.code = ci.countrycode
+)
+SELECT sum(population) FROM eng_city_list;
+
+WITH country_spa_off AS(
+	SELECT c.name, c.code, cl.language, cl.isofficial
+	FROM country c JOIN countrylanguage cl ON c.code = cl.countrycode WHERE language = 'Spanish' AND isofficial = 'true'),
+spa_city_list AS(
+    SELECT c.name AS countryname, ci.name AS cityname, ci.population
+    FROM country_spa_off c JOIN city ci  ON c.code = ci.countrycode
+)
+SELECT sum(population) FROM spa_city_list;
+
+
+-- Which countries have the 100 biggest cities in the world?
+WITH citylist AS(SELECT ci.name AS cityname, ci.countrycode, ci.population, c.name AS countryname
+FROM city ci JOIN country c ON ci.countrycode = c.code ORDER BY population desc LIMIT 100)
+SELECT * FROM citylist ORDER BY population desc
+
+
+-- What languages are spoken in the countries with the 100 biggest cities in the world?
+
+WITH citylist AS(SELECT ci.name AS cityname, ci.countrycode, ci.population, c.name AS countryname
+FROM city ci JOIN country c ON ci.countrycode = c.code ORDER BY population desc LIMIT 100),
+pop_list AS (SELECT * FROM citylist ORDER BY population desc),
+countrylist AS (SELECT countryname FROM pop_list GROUP BY countryname),
+countrylist2 AS (SELECT list.countryname, co.code
+                 FROM country co JOIN countrylist list ON co.name = list.countryname)
+SELECT li.language, list2.countryname FROM countrylanguage li JOIN countrylist2 list2 ON list2.code = li.countrycode ORDER BY list2.countryname;
